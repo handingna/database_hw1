@@ -35,7 +35,7 @@ class Store:
             logging.error(e)
 
     def get_db_conn(self):
-        return self.client
+        return self
 
 database_instance: Store = None
 
