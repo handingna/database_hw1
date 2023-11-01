@@ -1,8 +1,10 @@
-from be.model.store import Store
+from be.model import store
 
 class DBConn:
     def __init__(self):
-        self.db = Store("mongodb://127.0.0.1:27017")
+        self.db = store.get_db_conn()
+
+        # self.db = Store("mongodb://127.0.0.1:27017")
 
     def user_id_exist(self, user_id):
         # 在MongoDB中查找用户
