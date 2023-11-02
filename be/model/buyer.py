@@ -27,36 +27,32 @@ class Buyer(db_conn.DBConn):
             # 遍历传入的图书ID和购买数量
             for book_id, count in id_and_count:
                 # 查询图书库存和信息
-                store_data = self.db.store.find_one(
-                    {"store_id": store_id, "books.book_id": book_id}
+                store_data = self.db.db.store.find_one(
+                    {"store_id": store_id, "book_id": book_id}
                 )
                 if store_data is None:
-                    return error.error_non_exist_book_id(book_id) + (order_id,)  # 返回图书ID不存在的错误信息
-
-                book_info = next(
-                    (book for book in store_data["books"] if book["book_id"] == book_id),
-                    None,
-                )
-                stock_level = book_info["stock_level"]
+                    return error.error_non_exist_book_id(book_id) + (order_id,)  # 返回图书ID不存在的错误信息P
+                stock_level = store_data["stock_level"]
+                book_info=store_data['book_info']
+                book_info=json.loads(book_info)
                 price = book_info["price"]
 
                 # 检查库存是否足够
                 if stock_level < count:
                     return error.error_stock_level_low(book_id) + (order_id,)  # 返回库存不足的错误信息
-
                 # 更新图书库存
-                self.db.store.update_one(
+                self.db.db.store.update_one(
                     {"store_id": store_id, "books.book_id": book_id},
                     {"$inc": {"books.$.stock_level": -count}},
                 )
 
                 # 插入新订单的详细信息
-                self.db.new_order_detail.insert_one(
+                self.db.db.new_order_detail.insert_one(
                     {"order_id": uid, "book_id": book_id, "count": count, "price": price}
                 )
 
             # 插入新订单
-            self.db.new_order.insert_one(
+            self.db.db.new_order.insert_one(
                 {"order_id": uid, "store_id": store_id, "user_id": user_id}
             )
             order_id = uid  # 更新订单ID
@@ -70,7 +66,7 @@ class Buyer(db_conn.DBConn):
     def payment(self, user_id: str, password: str, order_id: str) -> (int, str):
         try:
             # 查询订单信息
-            order_data = self.db.new_order.find_one({"order_id": order_id})
+            order_data = self.db.db.new_order.find_one({"order_id": order_id})
             if order_data is None:
                 return error.error_invalid_order_id(order_id)  # 返回无效订单ID的错误信息
 
@@ -82,7 +78,7 @@ class Buyer(db_conn.DBConn):
                 return error.error_authorization_fail()  # 返回权限验证失败的错误信息
 
             # 查询用户余额和密码
-            user_data = self.db.user.find_one({"user_id": buyer_id})
+            user_data = self.db.db.user.find_one({"user_id": buyer_id})
             if user_data is None:
                 return error.error_non_exist_user_id(buyer_id)  # 返回用户ID不存在的错误信息
 
@@ -91,7 +87,7 @@ class Buyer(db_conn.DBConn):
                 return error.error_authorization_fail()  # 返回权限验证失败的错误信息
 
             # 查询商店信息
-            store_data = self.db.user_store.find_one({"store_id": store_id})
+            store_data = self.db.db.user_store.find_one({"store_id": store_id})
             if store_data is None:
                 return error.error_non_exist_store_id(store_id)  # 返回商店ID不存在的错误信息
 
@@ -104,7 +100,7 @@ class Buyer(db_conn.DBConn):
             total_price = 0
 
             # 查询订单详细信息并计算总价
-            order_details = self.db.new_order_detail.find({"order_id": order_id})
+            order_details = self.db.db.new_order_detail.find({"order_id": order_id})
             for detail in order_details:
                 count = detail["count"]
                 price = detail["price"]
@@ -115,20 +111,20 @@ class Buyer(db_conn.DBConn):
                 return error.error_not_sufficient_funds(order_id)  # 返回余额不足的错误信息
 
             # 更新买家余额
-            self.db.user.update_one(
+            self.db.db.user.update_one(
                 {"user_id": buyer_id, "balance": {"$gte": total_price}},
                 {"$inc": {"balance": -total_price}},
             )
 
             # 更新卖家余额
-            self.db.user.update_one(
+            self.db.db.user.update_one(
                 {"user_id": buyer_id},
                 {"$inc": {"balance": total_price}},
             )
 
             # 删除订单和订单详细信息
-            self.db.new_order.delete_one({"order_id": order_id})
-            self.db.new_order_detail.delete_many({"order_id": order_id})
+            self.db.db.new_order.delete_one({"order_id": order_id})
+            self.db.db.new_order_detail.delete_many({"order_id": order_id})
 
         except Exception as e:
             logging.info("Error: {}".format(str(e)))
@@ -139,8 +135,8 @@ class Buyer(db_conn.DBConn):
     # 用户充值方法
     def add_funds(self, user_id, password, add_value) -> (int, str):
         try:
-            # 查询用户密码
-            user_data = self.db.user.find_one({"user_id": user_id})
+
+            user_data = self.db.db.user.find_one({"user_id": user_id})
             if user_data is None:
                 return error.error_authorization_fail()  # 返回权限验证失败的错误信息
 
@@ -149,7 +145,7 @@ class Buyer(db_conn.DBConn):
                 return error.error_authorization_fail()  # 返回权限验证失败的错误信息
 
             # 更新用户余额
-            self.db.user.update_one(
+            self.db.db.user.update_one(
                 {"user_id": user_id},
                 {"$inc": {"balance": add_value}},
             )
