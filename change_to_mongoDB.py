@@ -3,12 +3,15 @@ from pymongo import MongoClient
 
 # 连接到SQLite数据库
 sqlite_connection = sqlite3.connect('fe/data/book_lx.db')
+# sqlite_connection = sqlite3.connect('fe/data/book.db')
+
 sqlite_cursor = sqlite_connection.cursor()
 
 # 连接到MongoDB数据库
 mongo_client = MongoClient('mongodb://localhost:27017')  # 根据MongoDB的实际连接信息修改
-mongo_db = mongo_client['bookstore']  # 指定MongoDB数据库名称
-mongo_collection = mongo_db['books']  # 指定MongoDB数据集合名称
+mongo_db = mongo_client['book_lx']  # 指定MongoDB数据库名称
+# mongo_db = mongo_client['book']  # 指定MongoDB数据库名称
+mongo_collection = mongo_db['book']  # 指定MongoDB数据集合名称
 
 # 查询SQLite数据库中的书籍数据
 sqlite_cursor.execute("SELECT * FROM book")
