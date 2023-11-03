@@ -53,12 +53,15 @@ class User(DBConn):
 
     # 注册用户
     def register(self, user_id: str, password: str):
+        # 检查用户是否已存在
+        if self.db.db.user.find_one({"user_id": user_id}):
+            return 512, "exist user id {}".format(user_id)
+
         try:
-            # 生成用户的 token
+            # 用户不存在，继续注册逻辑
             terminal = "terminal_{}".format(str(time.time()))
             token = jwt_encode(user_id, terminal)
 
-            # 创建用户数据并插入 MongoDB
             user_data = {
                 "user_id": user_id,
                 "password": password,
