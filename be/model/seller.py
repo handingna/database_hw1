@@ -1,10 +1,10 @@
 from be.model import error
-from be.model.db_conn import DBConn
+from be.model import db_conn
 
 
-class Seller(DBConn):
+class Seller(db_conn.DBConn):
     def __init__(self):
-        DBConn.__init__(self)
+        db_conn.DBConn.__init__(self)
 
     def add_book(
             self,
@@ -42,6 +42,8 @@ class Seller(DBConn):
                 return error.error_non_exist_user_id(user_id)
             if not self.store_id_exist(store_id):
                 return error.error_non_exist_store_id(store_id)
+            if not self.book_id_exist(store_id, book_id):
+                return error.error_non_exist_book_id(book_id)
 
             # 更新MongoDB中书本的库存
             filter = {"store_id": store_id, "book_id": book_id}
