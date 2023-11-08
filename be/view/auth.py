@@ -55,3 +55,15 @@ def change_password():
         user_id=user_id, old_password=old_password, new_password=new_password
     )
     return jsonify({"message": message}), code
+
+
+@bp_auth.route("/search", methods=["POST"])
+def search_books():
+    query = request.json.get("query")
+    search_scope = request.json.get("search_scope")
+    store_id = request.json.get("store_id")  # Add store_id parameter
+    u = user.User()
+
+    code, message, books = u.search_books(query=query, search_scope=search_scope, store_id=store_id)
+
+    return jsonify({"message": message, "books": books}), code
