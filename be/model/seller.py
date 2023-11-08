@@ -1,6 +1,9 @@
+import json
+
 from be.model import error
 from be.model import db_conn
-
+from jieba import cut  # 用于中文分词
+import re
 
 class Seller(db_conn.DBConn):
     def __init__(self):
@@ -14,6 +17,22 @@ class Seller(db_conn.DBConn):
             book_json_str: str,
             stock_level: int,
     ):
+
+        ###########为search做准备 start
+        book_json = json.loads(book_json_str)
+        print(book_json)
+        title = book_json.get('title', [])
+        tags = book_json.get('tags', [])
+        content = book_json.get('content', [])
+        book_intro = book_json.get('book_intro', [])
+
+        # 执行分词操作
+        tags_tokens = " ".join(tags)
+        content_tokens = " ".join(cut(content))  # 对内容进行分词
+        book_intro_tokens = " ".join(cut(book_intro))  # 对书籍介绍进行分词
+
+        detail_book = str(title) + ' ' + str(tags_tokens) + ' ' + str(content_tokens) + ' ' + str(book_intro_tokens)
+        ###########为search做准备  end
         try:
             if not self.user_id_exist(user_id):
                 return error.error_non_exist_user_id(user_id)
@@ -28,8 +47,10 @@ class Seller(db_conn.DBConn):
                 "book_id": book_id,
                 "book_info": book_json_str,
                 "stock_level": stock_level,
+                "detail_book": detail_book,
             }
             self.db.db.store.insert_one(book_info)
+
         except BaseException as e:
             return 530, "{}".format(str(e))
         return 200, "ok"
