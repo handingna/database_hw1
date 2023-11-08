@@ -40,3 +40,11 @@ class Auth:
         url = urljoin(self.url_prefix, "unregister")
         r = requests.post(url, json=json)
         return r.status_code
+
+    def search_books(self, query:str, search_scope:str, store_id=None) -> int:
+        json = {"query": query, "search_scope": search_scope}
+        if store_id is not None:
+            json["store_id"] = store_id
+        url = urljoin(self.url_prefix, "search")
+        r = requests.post(url, json=json)
+        return r.status_code
