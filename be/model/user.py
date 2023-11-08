@@ -1,8 +1,11 @@
+from pymongo import MongoClient
+
 from be.model import error
 from be.model.db_conn import DBConn
 import jwt
 import time
 import logging
+
 
 # encode a json string like:
 #   {
@@ -158,6 +161,55 @@ class User(DBConn):
         except Exception as e:
             return 530, "{}".format(str(e))
         return 200, "ok"
+
+    def search_books(self, query: str, search_scope: str, store_id=None):
+        try:
+            search_scope_mapping = {
+                "title",
+                "tag",
+                "content",
+                "book_intro"
+            }
+            page = 1
+            page_size = 10
+            search_filter = {}
+
+            if store_id:
+                # If store_id is provided, limit the search to the specific store
+                if not self.store_id_exist(store_id):
+                    return error.error_non_exist_store_id(store_id)
+                search_filter["store_id"] = store_id
+
+            if search_scope in search_scope_mapping:
+                # Create a full-text search index if not already created
+                self.db.db.store.create_index(
+                    [("detail_book", "text")]
+                )
+                # Build the query based on store_id and search_scope
+                query_filter = search_filter
+                query_filter["$text"] = {"$search": query}
+
+                skip = (page - 1) * page_size
+
+
+                results = self.db.db.store.find(
+                    query_filter,
+                    {"store_id": 1, "book_id": 1, "book_info": 1, "stock_level": 1},
+                ).sort([("score", {"$meta": "textScore"})]).skip(skip).limit(page_size)
+                books=[]
+                for book in results:
+                    books.append(book)
+
+                # Convert ObjectId to strings
+                for book in books:
+                    book['_id'] = str(book['_id'])
+
+                return 200, "Search successful", books
+            else:
+                return error.error_and_message(400, "Invalid search scope"), None
+        except Exception as e:
+            return error.error_and_message(500, f"Error: {str(e)}"),None
+
 
 # import jwt
 # import time
