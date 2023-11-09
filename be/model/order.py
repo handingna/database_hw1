@@ -74,7 +74,6 @@ class Order:
     def check_order(self, user_id: str):
         # 最后返回一个订单详情
         # his_order_detail = []
-
         user = self.db.users.find_one({"user_id": user_id})
         if user is None:
             return error.error_non_exist_user_id(user_id)
@@ -84,73 +83,27 @@ class Order:
         user = {"user_id": user_id}
         new_orders = self.db.new_order_details.find(user)
         if new_orders:
-            # book_id = ""
-            # count = ""
-            # price = ""
-            # status = ""
 
             for new_order in new_orders:
                 order_id = new_order["order_id"]
                 order = {"order_id": order_id}
                 new_order_details = self.db.new_order_details.find(order)
-
                 if new_order_details is None:
-                    # for new_order_detail in new_order_details:
-                    #     # 保存书的详细信息
-                    #     book_id = new_order_detail["book_id"]
-                    #     count = new_order_detail["count"]
-                    #     price = new_order_detail["price"]
-                    #     status = new_order_detail["books_status"]
 
                     return error.error_invalid_order_id(order_id)
-
-                # details = {
-                #     "status": status,
-                #     "order_id": order_id,
-                #     "buyer_id": new_order["user_id"],
-                #     "store_id": new_order["store_id"],
-                #     "price": price,
-                #     "book_id": book_id,
-                #     "count": count,
-                # }
-
-                # his_order_detail.append(details)
 
 
         # 查询已付款订单
         new_orders_paid = self.db.new_order_paid.find(user)
 
         if new_orders_paid:
-            # book_id = ""
-            # count = ""
-            # price = ""
-            # status = ""
             for new_order_paid in new_orders_paid:
                 order_id = new_order_paid["order_id"]
                 order = {"order_id": order_id}
                 new_order_details = self.db.new_order_details.find(order)
                 if new_order_details is None:
-                    # for new_order_detail in new_order_details:
-                        # 保存书的详细信息
-                        # book_id = new_order_detail["book_id"]
-                        # count = new_order_detail["count"]
-                        # price = new_order_detail["price"]
-                        # status = new_order_detail["books_status"]
-
 
                     return error.error_invalid_order_id(order_id)
-
-                # details = {
-                #     "status": status,
-                #     "order_id": order_id,
-                #     "buyer_id": new_order_paid["user_id"],
-                #     "store_id": new_order_paid["store_id"],
-                #     "total_price": new_order_paid["price"],
-                #     "price": price,
-                #     "book_id": book_id,
-                #     "count": count,
-                # }
-                # his_order_detail.append(details)
 
         return 200, "ok"
 
@@ -164,7 +117,6 @@ class Order:
                 self.db.new_orders.delete_one({"order_id": order_id})
 
         return 200, "ok"
-
 
 b = Order()
 scheduler = BackgroundScheduler()
