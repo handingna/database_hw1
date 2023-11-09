@@ -5,6 +5,7 @@ from be.model import db_conn
 from jieba import cut  # 用于中文分词
 import re
 
+
 class Seller(db_conn.DBConn):
     def __init__(self):
         db_conn.DBConn.__init__(self)
@@ -86,6 +87,35 @@ class Seller(db_conn.DBConn):
             self.db.db.user_store.insert_one(store_info)
         except BaseException as e:
             return 530, "{}".format(str(e))
+        return 200, "ok"
+
+
+    def ship_order(self, user_id: str, store_id: str, order_id: str):
+        try:
+            if not self.user_id_exist(user_id):
+                return error.error_non_exist_user_id(user_id)
+            if not self.store_id_exist(store_id):
+                return error.error_non_exist_store_id(store_id)
+
+            # 在MongoDB中查询订单信息
+            order_info = self.db.db.orders.find_one({"_id": order_id, "store_id": store_id})
+
+            if not order_info:
+                return error.error_invalid_order_id(order_id)
+
+            # 获取订单状态
+            current_status = order_info.get("status", 1)
+
+            # 如果订单状态不为2（已付款未发货）
+            if current_status != 2:
+                return error.error_invalid_order_status(order_id)
+
+            # 更新订单状态为3（已发货未收货）
+            self.db.db.orders.update_one({"_id": order_id}, {"$set": {"status": 3}})
+
+        except BaseException as e:
+            return 530, "{}".format(str(e))
+
         return 200, "ok"
 
 # import sqlite3 as sqlite
