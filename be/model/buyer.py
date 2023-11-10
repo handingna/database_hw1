@@ -1,9 +1,9 @@
 import uuid
 import json
 import logging
-from pymongo import MongoClient
 from be.model import db_conn
 from be.model import error
+from datetime import datetime
 
 
 class Buyer(db_conn.DBConn):
@@ -52,9 +52,11 @@ class Buyer(db_conn.DBConn):
                 )
 
             # 插入新订单
-            self.db.db.new_order.insert_one(
+
+            self.db.db.orders.insert_one(
                 {"order_id": uid, "store_id": store_id, "user_id": user_id, "status": 1}
             )
+
             order_id = uid  # 更新订单ID
         except Exception as e:
             logging.info("Error: {}".format(str(e)))
@@ -66,12 +68,18 @@ class Buyer(db_conn.DBConn):
     def payment(self, user_id: str, password: str, order_id: str) -> (int, str):
         try:
             # 查询订单信息
-            order_data = self.db.db.new_order.find_one({"order_id": order_id})
+            order_data = self.db.db.orders.find_one({"order_id": order_id})
             if order_data is None:
                 return error.error_invalid_order_id(order_id)  # 返回无效订单ID的错误信息
 
             buyer_id = order_data["user_id"]
             store_id = order_data["store_id"]
+            status = order_data["status"]
+
+            # 检查订单状态
+            if status != 1:
+                return 520,"error_invalid_order_status({})".format(order_id)
+
 
             # 检查用户权限
             if buyer_id != user_id:
@@ -113,19 +121,21 @@ class Buyer(db_conn.DBConn):
             # 更新买家余额
             self.db.db.user.update_one(
                 {"user_id": buyer_id, "balance": {"$gte": total_price}},
-                {"$inc": {"balance": -total_price}},
+                {"$inc": {"status": -total_price}},
             )
 
             # 更新卖家余额
             self.db.db.user.update_one(
-                {"user_id": buyer_id},
+                {"user_id": seller_id},
                 {"$inc": {"balance": total_price}},
             )
 
             # 删除订单和订单详细信息
-            self.db.db.new_order.delete_one({"order_id": order_id})
             self.db.db.new_order_detail.delete_many({"order_id": order_id})
-
+            self.db.db.orders.update_one(
+                {"order_id": order_id},
+                {"$set": {"status": 2}},
+            )
         except Exception as e:
             logging.info("Error: {}".format(str(e)))
             return 500, "Internal Server Error"
@@ -156,34 +166,144 @@ class Buyer(db_conn.DBConn):
         return 200, "ok"  # 返回成功状态码和消息
 
     def receive_order(self, user_id, order_id):
-        # 检查买家用户ID是否存在
-        user = self.db.db.user.find_one({"user_id": user_id})
-        if user is None:
-            return "error_non_exist_user_id({})".format(user_id)
+        try:
+            # 检查买家用户ID是否存在
+            if not self.user_id_exist(user_id):
+                return error.error_non_exist_user_id(user_id) + (order_id,)  # 返回用户ID不存在的错误信息
 
-        # 检查订单ID是否存在
-        order = self.db.db.new_order.find_one({"order_id": order_id})
-        if order is None:
-            return "error_invalid_order_id({})".format(order_id)
+            # 查询订单信息
+            order = self.db.db.orders.find_one({"order_id": order_id})
+            if order is None:
+                return error.error_invalid_order_id(order_id)  # 返回无效订单ID的错误信息
 
-        # 提取订单信息中的相关字段
-        total_price = order["total_price"]
-        store_id = order["store_id"]
-        status = order["status"]
+            # 提取订单信息中的相关字段
+            status = order["status"]
 
-        # 验证订单状态
-        if status != 3:
-            return "error_invalid_order_status({})".format(order_id)
+            # 验证订单状态
+            if status == 4:
+                self.db.db.orders.update_one({"order_id": order_id}, {"$set": {"status": 4}})
+            else:
+                return 520,"error_invalid_order_status({})".format(order_id)
 
-        # 查询卖家信息
-        seller = self.db.db.sellers.find_one({"store_id": store_id})
+        except Exception as e:
+            logging.info("Error: {}".format(str(e)))
+            return 500, "Internal Server Error"
 
-        # 更新卖家余额，增加订单总价
-        seller_balance = seller["balance"]
-        new_balance = seller_balance + total_price
-        self.db.db.sellers.update_one({"store_id": store_id}, {"$set": {"balance": new_balance}})
+        return 200, "Order received successfully"
 
-        # 将status改为4
-        self.db.db.orders.update_one({"order_id": order_id}, {"$set": {"status": 4}})
+    def buyer_order_cancel(self, user_id: str, order_id: str) -> (int, str):
+        store_id = ""
+        try:
+            # 检查用户ID是否存在
+            if not self.user_id_exist(user_id):
+                return error.error_non_exist_user_id(user_id)
 
-        return "Order received successfully."
+            order = self.db.db.orders.find_one({"order_id": order_id})
+            if order is None:
+                return error.error_invalid_order_id(order_id)  # 返回无效订单ID的错误信息
+
+            if order["status"] == 1:
+                buyer_id = order["user_id"]
+                if buyer_id != user_id:
+                    return error.error_authorization_fail()
+                self.db.db.orders.delete_one({"order_id": order_id})
+
+            # 如果已经支付的话需要取消订单以后减少商家余额，增加用户余额
+            elif order["status"] == 2:
+                buyer_id = order["user_id"]
+
+                if buyer_id != user_id:
+                    return error.error_authorization_fail()
+                # 找到对应商店和价格
+                store_id = order["store_id"]
+                price = order["price"]
+
+                # 根据商店找到卖家
+                user_store = self.db.db.user_store.find_one({"store_id": store_id})
+
+                seller_id = user_store["user_id"]
+
+                # 减少卖家余额
+                condition = {"$inc": {"balance": -price}}
+                seller = {"user_id": seller_id}
+                self.db.db.user.update_one(seller, condition)
+
+                # 增加买家余额
+                buyer = {"user_id": buyer_id}
+                condition = {"$inc": {"balance": price}}
+                self.db.db.user.update_one(buyer, condition)
+            else:
+                return error.error_authorization_fail()
+            # 取消订单
+            self.db.db.orders.update_one({"order_id": order_id}, {"$set": {"status": 3}})
+
+            # 增加书籍库存
+            orders = self.db.db.new_order_detail.find({"order_id": order_id})
+            for order in orders:
+                book_id = order["book_id"]
+                count = order["count"]
+                store_book = {"store_id": store_id, "book_id": book_id}
+                condition = {"$inc": {"stock_level": count}}
+                self.db.db.store.update_one(store_book, condition)
+        except Exception as e:
+            logging.info("Error: {}".format(str(e)))
+            return 500, "Internal Server Error"
+
+        return 200, "ok"
+# 查询历史订单
+    def history_order(self, user_id: str):
+        # 最后返回一个订单详情
+        # his_order_detail = []
+        try:
+            # 检查用户ID是否存在
+            if not self.user_id_exist(user_id):
+                return error.error_non_exist_user_id(user_id) ,None
+
+            # 查询历史订单分为：取消的订单和未取消的订单
+
+            user = {"user_id": user_id}
+            orders = self.db.db.orders.find(user)
+
+            result = []
+            # 取消的订单
+            if(orders["status"==3]):
+                for order in orders:
+                   result.append(order)
+            # 未取消的订单
+            else:
+                for order in orders:
+                    order_id = order["order_id"]
+                    order = {"order_id": order_id}
+                    order_details = self.db.db.new_order_details.find(order)
+                    for detail in order_details:
+                        result.append(detail)
+        except Exception as e:
+            logging.info("Error: {}".format(str(e)))
+            return 500, "Internal Server Error",None
+        return 200, "ok", result
+
+    def overtime_order_cancel(self):
+        try:
+        # 查询未支付订单
+            unpaid_orders = self.db.db.orders.find({"status": '1'})
+            current_time = datetime.now()
+
+            for order in unpaid_orders:
+                order_id = order["order_id"]
+                # 获取 UUID 时间戳
+                temp = order_id.split("_")
+                time_ = temp[2]
+                # 转换 UUID 时间戳为可读的时间格式
+                order_time = datetime.fromtimestamp(uuid.UUID(time_).time)
+                # 定义超时阈值
+                timeout_threshold = 12 * 60
+
+                if (current_time - order_time) > timeout_threshold:
+                    # 取消订单
+                    self.buyer_order_cancel(order["user_id"], order_id)
+
+        except Exception as e:
+            logging.info("Error: {}".format(str(e)))
+            return 500, "Internal Server Error"
+
+        return 200, "ok"

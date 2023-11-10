@@ -98,7 +98,7 @@ class Seller(db_conn.DBConn):
                 return error.error_non_exist_store_id(store_id)
 
             # 在MongoDB中查询订单信息
-            order_info = self.db.db.orders.find_one({"_id": order_id, "store_id": store_id})
+            order_info = self.db.db.orders.find_one({"order_id": order_id, "store_id": store_id})
 
             if not order_info:
                 return error.error_invalid_order_id(order_id)
@@ -106,91 +106,13 @@ class Seller(db_conn.DBConn):
             # 获取订单状态
             current_status = order_info.get("status", 1)
 
-            # 如果订单状态不为2（已付款未发货）
-            if current_status != 2:
-                return error.error_invalid_order_status(order_id)
-
-            # 更新订单状态为3（已发货未收货）
-            self.db.db.orders.update_one({"_id": order_id}, {"$set": {"status": 3}})
-
+            if current_status == 2:
+            # 更新订单状态为4（已发货未收货）
+                self.db.db.orders.update_one({"order_id": order_id}, {"$set": {"status": 4}})
+            else:            # 如果订单状态不为2（已付款未发货）
+                return 520,"error_invalid_order_status({})".format(order_id)
         except BaseException as e:
             return 530, "{}".format(str(e))
 
         return 200, "ok"
 
-# import sqlite3 as sqlite
-# from be.model import error
-# from be.model import db_conn
-#
-#
-# class Seller(db_conn.DBConn):
-#     def __init__(self):
-#         db_conn.DBConn.__init__(self)
-#
-#     def add_book(
-#         self,
-#         user_id: str,
-#         store_id: str,
-#         book_id: str,
-#         book_json_str: str,
-#         stock_level: int,
-#     ):
-#         try:
-#             if not self.user_id_exist(user_id):
-#                 return error.error_non_exist_user_id(user_id)
-#             if not self.store_id_exist(store_id):
-#                 return error.error_non_exist_store_id(store_id)
-#             if self.book_id_exist(store_id, book_id):
-#                 return error.error_exist_book_id(book_id)
-#
-#             self.conn.execute(
-#                 "INSERT into store(store_id, book_id, book_info, stock_level)"
-#                 "VALUES (?, ?, ?, ?)",
-#                 (store_id, book_id, book_json_str, stock_level),
-#             )
-#             self.conn.commit()
-#         except sqlite.Error as e:
-#             return 528, "{}".format(str(e))
-#         except BaseException as e:
-#             return 530, "{}".format(str(e))
-#         return 200, "ok"
-#
-#     def add_stock_level(
-#         self, user_id: str, store_id: str, book_id: str, add_stock_level: int
-#     ):
-#         try:
-#             if not self.user_id_exist(user_id):
-#                 return error.error_non_exist_user_id(user_id)
-#             if not self.store_id_exist(store_id):
-#                 return error.error_non_exist_store_id(store_id)
-#             if not self.book_id_exist(store_id, book_id):
-#                 return error.error_non_exist_book_id(book_id)
-#
-#             self.conn.execute(
-#                 "UPDATE store SET stock_level = stock_level + ? "
-#                 "WHERE store_id = ? AND book_id = ?",
-#                 (add_stock_level, store_id, book_id),
-#             )
-#             self.conn.commit()
-#         except sqlite.Error as e:
-#             return 528, "{}".format(str(e))
-#         except BaseException as e:
-#             return 530, "{}".format(str(e))
-#         return 200, "ok"
-#
-#     def create_store(self, user_id: str, store_id: str) -> (int, str):
-#         try:
-#             if not self.user_id_exist(user_id):
-#                 return error.error_non_exist_user_id(user_id)
-#             if self.store_id_exist(store_id):
-#                 return error.error_exist_store_id(store_id)
-#             self.conn.execute(
-#                 "INSERT into user_store(store_id, user_id)" "VALUES (?, ?)",
-#                 (store_id, user_id),
-#             )
-#             self.conn.commit()
-#         except sqlite.Error as e:
-#             return 528, "{}".format(str(e))
-#         except BaseException as e:
-#             return 530, "{}".format(str(e))
-#         return 200, "ok"
