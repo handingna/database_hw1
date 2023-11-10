@@ -9,7 +9,7 @@ from fe.access.book import Book
 import uuid
 
 
-class TestSHIPBook:
+class TestReceiveBook:
     seller_id: str
     store_id: str
     buyer_id: str
@@ -22,9 +22,9 @@ class TestSHIPBook:
 
     @pytest.fixture(autouse=True)
     def pre_run_initialization(self):
-        self.seller_id = "test_ship_book_seller_id_{}".format(str(uuid.uuid1()))
-        self.store_id = "test_ship_book_store_id_{}".format(str(uuid.uuid1()))
-        self.buyer_id = "test_ship_book_buyer_id_{}".format(str(uuid.uuid1()))
+        self.seller_id = "test_receive_book_seller_id_{}".format(str(uuid.uuid1()))
+        self.store_id = "test_receive_book_store_id_{}".format(str(uuid.uuid1()))
+        self.buyer_id = "test_receive_book_buyer_id_{}".format(str(uuid.uuid1()))
         self.password = self.seller_id
         gen_book = GenBook(self.seller_id, self.store_id)
         ok, buy_book_id_list = gen_book.gen(
@@ -55,23 +55,17 @@ class TestSHIPBook:
         assert code == 200
         code = self.seller.ship_order(self.seller.seller_id, self.store_id, self.order_id)
         assert code == 200
-
+        code = self.buyer.receive_order(self.buyer.user_id,self.order_id)
+        assert code == 200
 
     def test_invalid_order_id(self):
         code = self.buyer.add_funds(self.total_price)
         assert code == 200
         code = self.buyer.payment(self.order_id)
         assert code == 200
-        code = self.seller.ship_order(self.seller.seller_id, self.store_id, self.order_id+'_x')
-        assert code != 200
-
-
-    def test_invalid_store_id(self):
-        code = self.buyer.add_funds(self.total_price)
+        code = self.seller.ship_order(self.seller.seller_id, self.store_id, self.order_id)
         assert code == 200
-        code = self.buyer.payment(self.order_id)
-        assert code == 200
-        code = self.seller.ship_order(self.seller.seller_id, self.store_id+'_x', self.order_id)
+        code = self.buyer.receive_order(self.buyer.user_id,self.order_id+'_x')
         assert code != 200
 
     def test_invalid_user_id(self):
@@ -79,18 +73,27 @@ class TestSHIPBook:
         assert code == 200
         code = self.buyer.payment(self.order_id)
         assert code == 200
-        code = self.seller.ship_order(self.seller.seller_id+'_x', self.store_id, self.order_id)
+        code = self.seller.ship_order(self.seller.seller_id, self.store_id, self.order_id)
+        assert code == 200
+        code = self.buyer.receive_order(self.buyer.user_id+'_x',self.order_id)
         assert code != 200
-
 
 
     def test_invalid_order_status_1(self):
         code = self.buyer.add_funds(self.total_price)
         assert code == 200
 
-        code = self.seller.ship_order(self.seller.seller_id, self.store_id, self.order_id)
+        code = self.buyer.receive_order(self.buyer.user_id,self.order_id)
         assert code != 200
 
+    def test_invalid_order_status_2(self):
+        code = self.buyer.add_funds(self.total_price)
+        assert code == 200
+        code = self.buyer.payment(self.order_id)
+        assert code == 200
+
+        code = self.buyer.receive_order(self.buyer.user_id,self.order_id)
+        assert code != 200
 
     def test_invalid_order_status_3(self):
         code = self.buyer.buyer_order_cancel(self.buyer.user_id,self.order_id)
