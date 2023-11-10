@@ -206,7 +206,7 @@ class Buyer(db_conn.DBConn):
                 buyer_id = order["user_id"]
                 if buyer_id != user_id:
                     return error.error_authorization_fail()
-                self.db.db.orders.delete_one({"order_id": order_id})
+                self.db.db.orders.update_one({"order_id": order_id}, {"$set": {"status": 3}})
 
             # 如果已经支付的话需要取消订单以后减少商家余额，增加用户余额
             elif order["status"] == 2:
